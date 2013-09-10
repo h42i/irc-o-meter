@@ -26,7 +26,7 @@ int aggregatedMessages = 0;
 
 void connectToIRC()
 {
-	if (client.connect(ircServer, ircPort))
+	if (!client.connect(ircServer, ircPort))
 	{
 		Serial.print("Connected to ");
 		Serial.print(ircServer);
@@ -44,7 +44,11 @@ void connectToIRC()
 	}
 	else
 	{
-		Serial.println("Failed to connect.");
+		Serial.println("Failed to connect. Reconnecting...");
+		
+		delay(1000);
+		
+		connectToIRC();
 	}
 }
 
@@ -78,7 +82,10 @@ void refreshIRC()
 {
 	if (!client.connected())
 	{
+		client.flush();
 		client.stop();
+		
+		delay(2000);
 		
 		connectToIRC();
 	}
@@ -111,8 +118,6 @@ void refreshIRC()
 		else if (isCommand(message, privmsgCommand))
 		{
 			aggregatedMessages++;
-			
-			Serial.println(String(baseLevel));
 			
 			for (int i = 0; i < 50; i++)
 			{
