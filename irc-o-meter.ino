@@ -3,6 +3,9 @@
 
 int mmPin = 9;
 
+int greenPin = A0;
+int redPin = 4;
+
 byte mac[] = { 0x00, 0x26, 0x2D, 0x01, 0x55, 0xEA };
 IPAddress ip(192,168,1,184);
 
@@ -12,6 +15,9 @@ char ircServer[] = "irc.freenode.net";
 EthernetClient client;
 
 int loopCounter = 0;
+
+int greenCounter = 0;
+int redCounter = 0;
 
 int refreshInterval = 2;
 int baseLevel = 50;
@@ -92,6 +98,8 @@ void refreshIRC()
 		
 		String privmsgCommand = "PRIVMSG";
 		String pingCommand = "PING";
+		String joinCommand = "JOIN";
+		String partCommand = "PART";
 		
 		if (isCommand(message, pingCommand))
 		{
@@ -112,6 +120,18 @@ void refreshIRC()
 				delay(10);
 			}
 		}
+		else if (isCommand(message, joinCommand))
+		{
+			digitalWrite(greenPin, HIGH);
+			
+			greenCounter = 10000;
+		}
+		else if (isCommand(message, partCommand))
+		{
+			digitalWrite(redPin, HIGH);
+			
+			redCounter = 10000;
+		}
 	}
 }
 
@@ -119,7 +139,7 @@ void refreshBaseLevel()
 {
 	refreshIRC();
 	
-	baseLevel = (baseLevel - 1) + 20 * aggregatedMessages;
+	baseLevel = (baseLevel - 1) + 64 * aggregatedMessages;
 	
 	if (baseLevel < 0)
 	{
@@ -132,6 +152,18 @@ void refreshBaseLevel()
 void setup()
 {
 	pinMode(mmPin, OUTPUT);
+	
+	pinMode(A0, OUTPUT);
+	pinMode(A1, OUTPUT);
+	
+	digitalWrite(greenPin, LOW);
+	digitalWrite(A1, LOW);
+	
+	pinMode(4, OUTPUT);
+	pinMode(5, OUTPUT);
+	
+	digitalWrite(redPin, LOW);
+	digitalWrite(5, LOW);
 	
 	Serial.begin(9600);
 	
@@ -146,7 +178,7 @@ void loop()
 {
 	refreshIRC();
 	
-	if (loopCounter >= 6000)
+	if (loopCounter >= 5000)
 	{
 		refreshBaseLevel();
 		loopCounter = 0;
@@ -156,5 +188,25 @@ void loop()
 		loopCounter++;
 	}
 	
-	analogWrite(mmPin, baseLevel);
+	if (greenCounter)
+	{
+		greenCounter--;
+		
+		if (!greenCounter)
+		{
+			digitalWrite(greenPin, LOW);
+		}
+	}
+	
+	if (redCounter)
+	{
+		redCounter--;
+		
+		if (!redCounter)
+		{
+			digitalWrite(redPin, LOW);
+		}
+	}
+	
+	analogWrite(mmPin, baseLevel / 4);
 }
