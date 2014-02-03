@@ -7,12 +7,14 @@ int greenPin = A0;
 int redPin = 4;
 
 byte mac[] = { 0x00, 0x26, 0x2D, 0x01, 0x55, 0xEA };
-IPAddress ip(192,168,1,184);
+IPAddress ip(10,23,42,184);
 
 int ircPort = 6667;
 char ircServer[] = "irc.freenode.net";
 
 EthernetClient client;
+
+String message = "";
 
 int loopCounter = 0;
 
@@ -24,9 +26,11 @@ int baseLevel = 50;
 
 int aggregatedMessages = 0;
 
+long lastPing = 0;
+
 void connectToIRC()
 {
-	if (!client.connect(ircServer, ircPort))
+	if (client.connect(ircServer, ircPort))
 	{
 		Serial.print("Connected to ");
 		Serial.print(ircServer);
@@ -41,6 +45,8 @@ void connectToIRC()
 		client.println(nick);
 		client.println(user);
 		client.println(join);
+		
+		lastPing = millis();
 	}
 	else
 	{
@@ -80,9 +86,8 @@ bool isCommand(String message, String command)
 
 void refreshIRC()
 {
-	if (!client.connected())
+	if (!client.connected() || (millis() - lastPing) > 300000)
 	{
-		client.flush();
 		client.stop();
 		
 		delay(2000);
@@ -90,52 +95,57 @@ void refreshIRC()
 		connectToIRC();
 	}
 	
-	String message = "";
-	
 	if (client.available())
 	{
+		message = "";
+		
 		char c;
 		
-		while ((c = client.read()) != '\n')
+		while ((c = client.read()) != '\n' && client.available())
 		{
 			message += c;
 		}
 		
-		//Serial.println(message);
-		
-		String privmsgCommand = "PRIVMSG";
-		String pingCommand = "PING";
-		String joinCommand = "JOIN";
-		String partCommand = "PART";
-		
-		if (isCommand(message, pingCommand))
+		if (c == '\n')
 		{
-			String pongCommand = "PONG";
-			String answer = message.substring(pingCommand.length());
+			Serial.println(message);
 			
-			client.println(pongCommand + answer);
-		}
-		else if (isCommand(message, privmsgCommand))
-		{
-			aggregatedMessages++;
+			String privmsgCommand = "PRIVMSG";
+			String pingCommand = "PING";
+			String joinCommand = "JOIN";
+			String partCommand = "PART";
 			
-			for (int i = 0; i < 50; i++)
+			if (isCommand(message, pingCommand))
 			{
-				analogWrite(mmPin, 255);
-				delay(10);
+				String pongCommand = "PONG";
+				String answer = message.substring(pingCommand.length());
+				
+				client.println(pongCommand + answer);
+				
+				lastPing = millis();
 			}
-		}
-		else if (isCommand(message, joinCommand))
-		{
-			digitalWrite(greenPin, HIGH);
-			
-			greenCounter = 10000;
-		}
-		else if (isCommand(message, partCommand))
-		{
-			digitalWrite(redPin, HIGH);
-			
-			redCounter = 10000;
+			else if (isCommand(message, privmsgCommand))
+			{
+				aggregatedMessages++;
+				
+				for (int i = 0; i < 50; i++)
+				{
+					analogWrite(mmPin, 255);
+					delay(10);
+				}
+			}
+			else if (isCommand(message, joinCommand))
+			{
+				digitalWrite(greenPin, HIGH);
+				
+				greenCounter = 100000;
+			}
+			else if (isCommand(message, partCommand))
+			{
+				digitalWrite(redPin, HIGH);
+				
+				redCounter = 100000;
+			}
 		}
 	}
 }
@@ -172,7 +182,10 @@ void setup()
 	
 	Serial.begin(9600);
 	
-	Ethernet.begin(mac, ip);
+	if (!Ethernet.begin(mac))
+	{
+		Ethernet.begin(mac, ip);
+	}
 	
 	delay(1000);
 	
